@@ -1,104 +1,50 @@
-'''import yfinance as yf
+import datetime
+from dateutil.relativedelta import relativedelta
+import yfinance as yf
 import pandas as pd
 import pymongo
-import json
-from datetime import datetime, timezone
 
-def getUserRequiredData(requiredData, companySymbol):
-    baseClass = yf.Ticker(f"{companySymbol.upper()}.NS")
-    if requiredData == 'info':
-        return formatInfo(baseClass)
-    elif requiredData == 'actions':
-        return formatActions(baseClass)
-    elif requiredData == 'shares':
-        return formatShares(baseClass)
-    elif requiredData == 'incomeStatement':
-        return formatIncomeStatement(baseClass)
-    elif requiredData == 'balanceSheet':
-        return formatBalanceSheet(baseClass)
-    elif requiredData == 'cashFlow':
-        return formatCashFlow(baseClass)
-    elif requiredData == 'recommendation':
-        return formatRecommendations(baseClass)
-    else:
-        return None  # Handle unknown requiredData
+def downloadStockData(ticker, start_date, end_date):
+    try:
+        data = yf.download(ticker, start=start_date, end=end_date)
+        if data.empty:
+            raise ValueError(f"No data found for ticker {ticker}")
+        data.reset_index(inplace=True)
+        return data[['Date', 'Adj Close']]
+    except Exception as e:
+        print(f"Failed to download data for {ticker}: {e}")
+        return None
 
-def formatInfo(data):
-    return data.info
+def saveStockDataToMongoDB(client, database_name, collection_name, stock_data):
+    db = client[database_name]
+    collection = db[collection_name]
+    collection.insert_many(stock_data.to_dict('records'))
+    print("Stock data saved to MongoDB successfully.")
 
-def formatActions(data):
-    df = data.actions 
-    return addDateToData(df)
+def main(excel_file, start_date, end_date, client_uri, database_name, collection_name):
+    # Connect to MongoDB
+    client = pymongo.MongoClient(client_uri)
 
-def formatIncomeStatement(data):
-    df = data.income_stmt
-    return addDateToData(df)
+    # Read tickers from Excel file
+    tickers = pd.read_excel(excel_file)['Symbol']
 
-def formatBalanceSheet(data):
-    df = data.balance_sheet
-    return addDateToData(df)
+    # Download and save data for each stock
+    for ticker in tickers:
+        stock_data = downloadStockData(ticker, start_date, end_date)
+        if stock_data is not None:
+            saveStockDataToMongoDB(client, database_name, collection_name, stock_data)
 
-def formatCashFlow(data):
-    df = data.cashflow
-    return addDateToData(df)
+# Specify the path to your Excel file
+excel_file = r"/content/NSE_Companies_List_New.xlsx"
 
-def formatRecommendations(data):
-    df = data.recommendations
-    return json.loads(df.to_json(orient='records', date_format='iso'))
+# Define the date range
+start_date = "2020-04-01"
+end_date = datetime.datetime.now().strftime("%Y-%m-%d")  # Current date
 
-def formatShares(data):
-    da = data.get_shares_full(start="2022-01-01", end=None)
-    df = pd.DataFrame(list(da.items()), columns=['Date', 'Value'])
-    df['Date'] = df['Date'].astype(str)
-    return json.loads(df.to_json(orient='records'))
+# MongoDB client details
+client_uri = "mongodb+srv://ashishsharma1085:dZrSE1Xoe8q2ibi1@cluster0.e9xnedu.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
+database_name = "StockDatabase"
+collection_name = "StockPrices"
 
-def addDateToData(tableData):
-    tableData.reset_index(inplace=True)
-    return json.loads(tableData.to_json(orient='records'))
-
-def convert_epoch_to_mongodb_date(epoch_timestamp):
-    # Convert epoch timestamp to datetime object (considering it's in seconds)
-    date_obj = datetime.fromtimestamp(epoch_timestamp, tz=timezone.utc)
-    
-    # Convert datetime object to milliseconds since epoch
-    milliseconds_since_epoch = int(date_obj.timestamp() * 1000)
-    
-    # MongoDB Date type requires the date in milliseconds since epoch
-    mongo_date = {"$date": milliseconds_since_epoch}
-    
-    return mongo_date
-
-def convert_epoch_to_iso8601(epoch_timestamp):
-    # Convert epoch timestamp (in milliseconds) to datetime object
-    date_obj = datetime.fromtimestamp(epoch_timestamp / 1000.0, tz=timezone.utc)  # Convert to UTC datetime
-
-    # Format datetime object to ISO 8601 string
-    iso8601_string = date_obj.isoformat()
-
-    return iso8601_string
-
-excel_file_path = 'NSE_COMPANIES_LIST.xlsx'
-df = pd.read_excel(excel_file_path)
-client = pymongo.MongoClient('mongodb+srv://ashishsharma1085:dZrSE1Xoe8q2ibi1@cluster0.e9xnedu.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0')
-db = client['india_stock_data']     
-
-def insertActionsInDb():
-    index = 0mongo
-    collection = db['corporate_actions']
-    for symbol in df['Symbol']:
-        if pd.notna(symbol) and symbol.strip():
-            try:
-                corporate_actions = getUserRequiredData('actions', symbol)
-                for action in corporate_actions:
-                    action['Date'] = convert_epoch_to_iso8601(action['Date'])
-                
-                # Update database here using info dictionary
-                collection.insert_one({'symbol': f'{symbol}.NS', 'actions': corporate_actions})  # Example MongoDB insert operation
-                print(f'inserted for {symbol} {index}')
-                index = index + 1
-                
-            except Exception as e:
-                print(f"Error processing symbol {symbol}: {e}")
-                # Handle the error as needed, e.g., logging, skipping, etc.
-            
-insertActionsInDb()
+# Run the main function to download and save data
+main(excel_file, start_date, end_date, client_uri, database_name, collection_name)
