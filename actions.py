@@ -79,7 +79,7 @@ def convert_epoch_to_iso8601(epoch_timestamp):
 
 excel_file_path = 'NSE_COMPANIES_LIST.xlsx'
 df = pd.read_excel(excel_file_path)
-client = pymongo.MongoClient('mongodb+srv://sharmajai901:8BTwpqhJwlCTA53s@cluster0.zvluavu.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0')
+client = pymongo.MongoClient('mongodb+srv://ashishsharma1085:dZrSE1Xoe8q2ibi1@cluster0.e9xnedu.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0')
 db = client['india_stock_data']     
 
 def insertActionsInDb():

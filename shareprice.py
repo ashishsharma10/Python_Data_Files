@@ -1,4 +1,4 @@
-import yfinance as yf
+'''import yfinance as yf
 import pandas as pd
 import pymongo
 import json
@@ -82,33 +82,23 @@ df = pd.read_excel(excel_file_path)
 client = pymongo.MongoClient('mongodb+srv://ashishsharma1085:dZrSE1Xoe8q2ibi1@cluster0.e9xnedu.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0')
 db = client['india_stock_data']     
 
-def insertInfoInDb():
-    collection = db['basic_information']
-    index = 0
+def insertActionsInDb():
+    index = 0mongo
+    collection = db['corporate_actions']
     for symbol in df['Symbol']:
         if pd.notna(symbol) and symbol.strip():
             try:
-                info = getUserRequiredData('info', symbol)
-                
-                # Check each key before updating
-                keys_to_convert = [
-                    'governanceEpochDate', 'compensationAsOfEpochDate', 'lastFiscalYearEnd',
-                    'nextFiscalYearEnd', 'mostRecentQuarter', 'lastSplitDate', 'lastDividendDate',
-                    'firstTradeDateEpochUtc', 'exDividendDate'
-                ]
-                
-                for key in keys_to_convert:
-                    if key in info:
-                        info[key] = convert_epoch_to_mongodb_date(info[key])
+                corporate_actions = getUserRequiredData('actions', symbol)
+                for action in corporate_actions:
+                    action['Date'] = convert_epoch_to_iso8601(action['Date'])
                 
                 # Update database here using info dictionary
-                collection.insert_one(info)  # Example MongoDB insert operation
+                collection.insert_one({'symbol': f'{symbol}.NS', 'actions': corporate_actions})  # Example MongoDB insert operation
                 print(f'inserted for {symbol} {index}')
                 index = index + 1
-
+                
             except Exception as e:
                 print(f"Error processing symbol {symbol}: {e}")
                 # Handle the error as needed, e.g., logging, skipping, etc.
-
-# Call the insertInfoInDb function
-insertInfoInDb()
+            
+insertActionsInDb()
